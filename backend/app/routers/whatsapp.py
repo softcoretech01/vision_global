@@ -47,6 +47,8 @@ async def inbound(request: Request):
                 value = change.get("value") or {}
                 if value.get("messages"):
                     intake.handle_whatsapp_messages(value)
+                if value.get("statuses"):
+                    intake.handle_whatsapp_statuses(value)
     except Exception as e:
         print(f"[WHATSAPP · webhook-error] {e}")
     return {"ok": True}

@@ -4,3 +4,6 @@ __pycache__/
 .env
 *.log
 token.json
+
+# Local data backups (contain customer messages)
+backups/

@@ -281,6 +281,8 @@ export const api = {
   },
 
   setFollowup: (id, frequency) => { DB.followups[Number(id)] = frequency; return delay({ ok: true }) },
+  resolveSupport: () => delay({ ok: true }),
+  replyQuotation: () => delay({ ok: true, channel: 'whatsapp', simulated: true }),
 
   chat: (id) => {
     const row = DB.quotations.find((x) => x.id === Number(id))

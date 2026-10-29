@@ -28,6 +28,11 @@ export default function SupplierProposalDetail() {
   const [machines, setMachines] = useState([])
   const [saving, setSaving] = useState(false)
   const [notFound, setNotFound] = useState(false)
+  // Buyers quoted from this proposal who are Potential / need support (header buttons).
+  const [buyerCounts, setBuyerCounts] = useState({})
+  useEffect(() => {
+    api.quotations({ proposal: id, pageSize: 1 }).then((d) => setBuyerCounts(d.counts || {})).catch(() => {})
+  }, [id])
 
   // Waiting list dual-box state
   const [availableBuyers, setAvailableBuyers] = useState([])
@@ -73,36 +78,8 @@ export default function SupplierProposalDetail() {
             )
             setAvailableBuyers(buyers.filter((b) => !waitingIds.has(String(b.id))))
           })
-          .catch(() => {
-            // Fallback: query all enquiries to show candidate buyers
-            api.enquiries()
-              .then((enqRes) => {
-                if (!isMounted) return
-                const rows = enqRes.rows || []
-                const seen = new Set()
-                const list = []
-                rows.forEach((e) => {
-                  const bId = e.buyer_id || e.id
-                  if (!seen.has(bId)) {
-                    seen.add(bId)
-                    const name = e.buyer_name || e.name || 'Buyer'
-                    const comp = e.buyer_company || e.company || ''
-                    const city = e.buyer_city || e.city || ''
-                    const namePart = comp && name && comp !== name ? `${name} / ${comp}` : (comp || name)
-                    let label = city ? `${namePart}-${city}` : namePart
-                    if (e.segment === 'cold' && !label.toLowerCase().includes('do not call')) {
-                      label = `(Do Not Call)${label}`
-                    }
-                    list.push({ id: bId, label, name, company: comp, city })
-                  }
-                })
-                const waitingIds = new Set(
-                  currentWaiting.map((w) => String(typeof w === 'object' ? w.id : w))
-                )
-                setAvailableBuyers(list.filter((b) => !waitingIds.has(String(b.id))))
-              })
-              .catch(() => {})
-          })
+          // Only buyers who enquired for this machine; on error the list stays empty.
+          .catch(() => setAvailableBuyers([]))
       })
       .catch(() => setNotFound(true))
 
@@ -219,6 +196,8 @@ export default function SupplierProposalDetail() {
     <div className="field"><label>{label}{req ? ' *' : ''}</label>
       <select value={f[k] || ''} onChange={(e) => set(k, e.target.value)}>
         <option value="">-- Select --</option>
+        {/* keep a value captured from email/WhatsApp visible even if it isn't in the list */}
+        {f[k] && !opts.includes(f[k]) && <option value={f[k]}>{f[k]}</option>}
         {opts.map((o) => <option key={o} value={o}>{o}</option>)}
       </select></div>
   )
@@ -239,7 +218,17 @@ export default function SupplierProposalDetail() {
 
       <div className="card">
         <div className="card-head">
-          <h3>Supplier Proposal Details — Pro No {f.pro_no || '—'}</h3>
+          <div className="flex" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+            <h3>Supplier Proposal Details — Pro No {f.pro_no || '—'}</h3>
+            <button className="btn btn-outline btn-sm" onClick={() => navigate(`/potential?proposal=${id}&pro=${f.pro_no || ''}`)}
+              title="Buyers who tapped Interested for this proposal">
+              ⭐ Potential<span className={`badge ${buyerCounts.potential ? 'b-ok' : 'b-muted'}`} style={{ marginLeft: 6, padding: '1px 7px' }}>{buyerCounts.potential || 0}</span>
+            </button>
+            <button className="btn btn-outline btn-sm" onClick={() => navigate(`/need-support?proposal=${id}&pro=${f.pro_no || ''}`)}
+              title="Buyers of this proposal waiting for a reply">
+              🆘 Need Support<span className={`badge ${buyerCounts.support ? 'b-reject' : 'b-muted'}`} style={{ marginLeft: 6, padding: '1px 7px' }}>{buyerCounts.support || 0}</span>
+            </button>
+          </div>
           <span className="hint">{f.supplier_name} · {f.source_channel || 'email'}</span>
         </div>
         <div className="card-pad">

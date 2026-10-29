@@ -1,3 +1,4 @@
+import re
 from fastapi import APIRouter, Depends, Query, Request
 from ..db import prop_engine, q, one, execute
 from ..security import require_auth
@@ -7,7 +8,7 @@ router = APIRouter()
 
 @router.post("")
 async def create_enquiry(req: Request, user=Depends(require_auth)):
-    """Add a buyer enquiry (creates/reuses the buyer by email)."""
+    """Add a buyer enquiry (reuses the buyer with the same phone, else the same email)."""
     b = await req.json()
     email = (b.get("email") or "").strip()
     company = (b.get("company") or "").strip()
@@ -19,12 +20,25 @@ async def create_enquiry(req: Request, user=Depends(require_auth)):
     machine = model or (b.get("machine") or "").strip()
     priority = (b.get("priority") or "").strip() or "Medium"
     status = (b.get("status") or "").strip() or "New"
-    buyer = one(prop_engine, "SELECT id FROM buyers WHERE email=:e LIMIT 1", {"e": email}) if email else None
+    phone = (b.get("phone") or "").strip()
+    digits = re.sub(r"\D", "", phone)
+    # Same person = same phone (last 10 digits, ignoring +91 / spaces), else same email.
+    # One buyer record per person keeps WhatsApp replies on the right quotations.
+    buyer = None
+    if len(digits) >= 10:
+        buyer = one(prop_engine, """SELECT id FROM buyers
+                                    WHERE RIGHT(REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]',''),10)=RIGHT(:d,10)
+                                    ORDER BY id LIMIT 1""", {"d": digits})
+    if not buyer and email:
+        buyer = one(prop_engine, "SELECT id FROM buyers WHERE email=:e LIMIT 1", {"e": email})
     if buyer:
         bid = buyer["id"]
-        # Keep company / city fresh when provided on a repeat enquiry.
-        execute(prop_engine, "UPDATE buyers SET company=COALESCE(NULLIF(:co,''),company), city=COALESCE(NULLIF(:ci,''),city) WHERE id=:id",
-                {"co": company, "ci": city, "id": bid})
+        # Keep company / city / segment fresh on a repeat enquiry; fill a missing phone or email.
+        execute(prop_engine, """UPDATE buyers SET company=COALESCE(NULLIF(:co,''),company), city=COALESCE(NULLIF(:ci,''),city),
+                                       segment=COALESCE(NULLIF(:seg,''),segment),
+                                       phone=COALESCE(NULLIF(phone,''),NULLIF(:p,'')), email=COALESCE(NULLIF(email,''),NULLIF(:e,''))
+                                WHERE id=:id""",
+                {"co": company, "ci": city, "seg": b.get("segment") or "", "p": phone, "e": email, "id": bid})
     else:
         bid = execute(prop_engine,
                       "INSERT INTO buyers (name,company,city,phone,email,segment) VALUES (:n,:co,:ci,:p,:e,:seg)",
@@ -35,7 +49,7 @@ async def create_enquiry(req: Request, user=Depends(require_auth)):
     eid = execute(prop_engine,
                   """INSERT INTO enquiries (ref,buyer_id,channel,make,model,machine,category,quantity,specs,priority,status)
                      VALUES (:ref,:bid,:ch,:mk,:mdl,:m,:cat,:qty,'',:pri,:st)""",
-                  {"ref": ref, "bid": bid, "ch": (b.get("channel") or "email"), "mk": make, "mdl": model,
+                  {"ref": ref, "bid": bid, "ch": (b.get("channel") or "whatsapp"), "mk": make, "mdl": model,
                    "m": machine, "cat": b.get("category") or "", "qty": int(b.get("quantity") or 1),
                    "pri": priority, "st": status})["lastrowid"]
     return {"ok": True, "id": eid, "ref": ref, "buyer_id": bid}

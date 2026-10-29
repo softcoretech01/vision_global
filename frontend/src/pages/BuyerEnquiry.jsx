@@ -8,7 +8,7 @@ const PRIORITIES = ['Very high', 'High', 'Medium', 'Low']
 const STATUSES = ['New', 'Junior List', 'Junior Hot List', 'Head Very Hot List', 'MD Pending Call List', 'Potential Deal List']
 const BLANK = {
   company: '', city: '', make: '', model: '', priority: 'High', status: 'New',
-  name: '', email: '', phone: '', quantity: 1, channel: 'email', segment: 'hot',
+  name: '', email: '', phone: '', quantity: 1, channel: 'whatsapp', segment: 'hot',
 }
 
 export default function BuyerEnquiry() {
@@ -65,14 +65,10 @@ export default function BuyerEnquiry() {
       </div>
 
       <div className="card">
-        <div className="card-head">
-          <h3>Buyer Enquiries</h3>
-          <span className="hint">{data.total.toLocaleString('en-IN')} record(s){loading ? ' · loading…' : ''}</span>
-        </div>
         <div className="table-wrap">
           <table>
             <thead>
-              <tr><th>S.No</th><th>Enq No</th><th>Enq Date</th><th>Company Name</th><th>City</th><th>Make</th><th>Model</th><th>Priority</th><th>Segment</th></tr>
+              <tr><th>S.No</th><th>Enq No</th><th>Enq Date</th><th>Company Name</th><th>Buyer</th><th>City</th><th>Make</th><th>Model</th><th>Priority</th><th>Segment</th></tr>
             </thead>
             <tbody>
               {data.rows.map((e, i) => (
@@ -80,7 +76,8 @@ export default function BuyerEnquiry() {
                   <td className="t-sub">{(page - 1) * PAGE_SIZE + i + 1}</td>
                   <td className="t-main">{e.ref}</td>
                   <td className="t-sub">{fmtDate(e.received_at)}</td>
-                  <td>{e.buyer_company || e.buyer_name || '—'}{e.buyer_company && e.buyer_name && e.buyer_name !== e.buyer_company ? <div className="t-sub">{e.buyer_name}</div> : null}</td>
+                  <td>{e.buyer_company || '—'}</td>
+                  <td>{e.buyer_name || '—'}</td>
                   <td>{e.buyer_city || '—'}</td>
                   <td>{e.make || '—'}</td>
                   <td>{e.model || e.machine || '—'}</td>
@@ -88,7 +85,7 @@ export default function BuyerEnquiry() {
                   <td>{e.segment ? <SegBadge seg={e.segment} /> : '—'}</td>
                 </tr>
               ))}
-              {!loading && !data.rows.length && <tr><td colSpan="9" className="muted" style={{ textAlign: 'center', padding: 30 }}>No enquiries yet — click “Add Enquiry”.</td></tr>}
+              {!loading && !data.rows.length && <tr><td colSpan="10" className="muted" style={{ textAlign: 'center', padding: 30 }}>No enquiries yet — click “Add Enquiry”.</td></tr>}
             </tbody>
           </table>
         </div>

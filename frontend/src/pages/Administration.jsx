@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Fragment } from 'react'
 import { useParams } from 'react-router-dom'
 import { api } from '../api/index.js'
 import { useStore } from '../store/useStore.jsx'
@@ -28,9 +28,6 @@ function Keywords() {
   const del = async (id) => { await api.deleteKeyword(id); flash('Keyword removed'); load() }
   return (
     <div className="card">
-      <div className="card-head">
-        <div><h3>Supplier-Email Keywords</h3><span className="hint">supplier emails matching any keyword are fetched into Supplier Proposal</span></div>
-      </div>
       <div className="card-pad">
         <div className="toolbar" style={{ marginBottom: 14 }}>
           <input className="search-input" placeholder="Add a keyword (e.g. CNC machine, quotation)…"
@@ -65,7 +62,7 @@ function Users() {
   }
   return (
     <div className="card">
-      <div className="card-head"><h3>Users</h3>
+      <div className="card-actions">
         <button className="btn btn-primary btn-sm" onClick={() => setForm({ name: '', email: '', phone: '', role: 'operator', password: '' })}>＋ Add user</button>
       </div>
       <div className="table-wrap">
@@ -127,7 +124,7 @@ function Channels({ purpose, title }) {
 
   return (
     <div className="card">
-      <div className="card-head"><h3>{title}</h3>
+      <div className="card-actions">
         <button className="btn btn-primary btn-sm" onClick={() => setForm({ type: 'email', label: '', address: '', active: 1 })}>＋ Add channel</button>
       </div>
       <div className="table-wrap">
@@ -167,6 +164,29 @@ function Channels({ purpose, title }) {
 }
 
 /* ---------------- Templates ---------------- */
+/* Every message the app sends, grouped as on the page. Bot replies go out inside the
+   buyer's 24-hour WhatsApp window, so they never need an approved Meta template. */
+const TEMPLATE_GROUPS = [
+  { title: 'Buyer messages', kinds: [
+    ['buyer_quotation', 'Buyer Quotation'], ['quotation_prompt', 'Quotation Prompt'], ['followup', 'Follow-up'],
+  ] },
+  { title: 'WhatsApp bot replies to buyers', reply: true, kinds: [
+    ['interested_reply', 'Interested'], ['photos_reply', 'Send Photos'], ['photos_sent_reply', 'Photos Sent'],
+    ['not_interested_reply', 'Not Interested'], ['thanks_reply', 'Thanks / Ok'], ['greeting_pending_reply', 'Hello (pending)'],
+    ['greeting_interested_reply', 'Hello (interested)'], ['greeting_reply', 'Hello'], ['bye_reply', 'Bye'],
+    ['support_reply', 'Need Support'], ['price_reply', 'Price'], ['photos_wait_reply', 'Photos Again'],
+    ['visit_reply', 'Location'], ['delivery_reply', 'Delivery'], ['payment_reply', 'Payment'],
+    ['details_reply', 'Details'], ['generic_reply', 'Other Question'], ['noted_reply', 'More Messages'],
+  ] },
+  { title: 'Supplier messages', kinds: [
+    ['photo_request', 'Photo Request'], ['details_request', 'Details Request'], ['details_followup', 'Details Follow-up'],
+  ] },
+  { title: 'Other', kinds: [['whatsapp_response', 'WhatsApp Response']] },
+]
+const KIND = Object.fromEntries(TEMPLATE_GROUPS.flatMap((g) => g.kinds))
+const REPLY_KINDS = new Set(['quotation_prompt', ...TEMPLATE_GROUPS.filter((g) => g.reply).flatMap((g) => g.kinds.map(([k]) => k))])
+const preview = (t) => (t.subject || (t.body || '').split('\n').find((l) => l.trim()) || '—')
+
 function Templates() {
   const { flash } = useStore()
   const [rows, setRows] = useState([])
@@ -176,24 +196,51 @@ function Templates() {
   useEffect(() => { load() }, [])
   const save = async () => { await api.saveTemplate(edit.id, edit); setEdit(null); flash('Template saved'); load() }
   const create = async () => { await api.createTemplate(adding); setAdding(null); flash('Template added'); load() }
-  const KIND = { buyer_quotation: 'Buyer Quotation', followup: 'Follow-up', whatsapp_response: 'WhatsApp Response', photo_request: 'Photo Request' }
+  // Rows in page order: by group, then by the kind order inside it; unknown kinds last.
+  const order = TEMPLATE_GROUPS.flatMap((g) => g.kinds.map(([k]) => k))
+  const groups = TEMPLATE_GROUPS.map((g) => ({
+    ...g, rows: rows.filter((t) => g.kinds.some(([k]) => k === t.kind)).sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind)),
+  }))
+  const other = rows.filter((t) => !order.includes(t.kind))
+  if (other.length) groups.push({ title: 'Other', rows: other })
+  const metaCell = (t) => {
+    if (t.channel === 'email') return '—'
+    if (REPLY_KINDS.has(t.kind)) return <span className="t-sub">not needed</span>
+    return t.wa_template ? <code>{t.wa_template}</code> : <span className="badge b-muted">not set</span>
+  }
+  const fields = (t, set) => (
+    <>
+      <div className="field"><label>Name</label><input value={t.name} onChange={(e) => set({ ...t, name: e.target.value })} /></div>
+      {t.channel !== 'whatsapp' && (
+        <div className="field"><label>Subject (email)</label><input value={t.subject || ''} onChange={(e) => set({ ...t, subject: e.target.value })} /></div>
+      )}
+      <div className="field"><label>Message</label><textarea style={{ minHeight: 140 }} value={t.body} onChange={(e) => set({ ...t, body: e.target.value })} /></div>
+      {t.channel !== 'email' && !REPLY_KINDS.has(t.kind) && <WaTemplateFields t={t} set={set} />}
+    </>
+  )
   return (
     <div className="card">
-      <div className="card-head">
-        <div><h3>Message Templates</h3><span className="hint">placeholders: {'{{buyer}}'} {'{{machine}}'} {'{{qty}}'} {'{{price}}'} {'{{total}}'} {'{{supplier}}'}</span></div>
+      <div className="card-actions">
+        <div><span className="hint">placeholders: {'{{buyer}}'} {'{{company}}'} {'{{city}}'} {'{{machine}}'} {'{{model}}'} {'{{details}}'} {'{{qty}}'} {'{{price}}'} {'{{total}}'} {'{{quotation_no}}'} {'{{pro_no}}'} {'{{date}}'} {'{{ref}}'} {'{{supplier}}'} · supplier details: {'{{missing}}'}</span></div>
         <button className="btn btn-primary btn-sm" onClick={() => setAdding({ kind: 'buyer_quotation', channel: 'any', name: '', subject: '', body: '' })}>＋ Add template</button>
       </div>
       <div className="table-wrap">
-        <table>
-          <thead><tr><th>Kind</th><th>Name</th><th>Channel</th><th>Subject</th><th></th></tr></thead>
+        <table className="wrap">
+          <thead><tr><th>Kind</th><th>Name</th><th>Channel</th><th>Subject / message</th><th>Meta template</th><th></th></tr></thead>
           <tbody>
-            {rows.map((t) => (
-              <tr key={t.id}>
-                <td><span className="chip">{KIND[t.kind] || t.kind}</span></td>
-                <td className="t-main">{t.name}</td><td>{t.channel}</td>
-                <td className="t-sub">{t.subject || '—'}</td>
-                <td className="right"><button className="btn btn-outline btn-sm" onClick={() => setEdit(t)}>Edit</button></td>
-              </tr>
+            {groups.filter((g) => g.rows.length).map((g) => (
+              <Fragment key={g.title}>
+                <tr><td colSpan="6" className="t-main" style={{ background: 'var(--brand-050)', fontWeight: 700 }}>{g.title}</td></tr>
+                {g.rows.map((t) => (
+                  <tr key={t.id}>
+                    <td><span className="chip">{KIND[t.kind] || t.kind}</span></td>
+                    <td className="t-main">{t.name}</td><td>{t.channel}</td>
+                    <td className="t-sub" style={{ maxWidth: 380, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={t.body}>{preview(t)}</td>
+                    <td className="t-sub">{metaCell(t)}</td>
+                    <td className="right"><button className="btn btn-outline btn-sm" onClick={() => setEdit(t)}>Edit</button></td>
+                  </tr>
+                ))}
+              </Fragment>
             ))}
           </tbody>
         </table>
@@ -201,9 +248,7 @@ function Templates() {
       {edit && (
         <Modal title={`Edit — ${KIND[edit.kind] || edit.kind}`} onClose={() => setEdit(null)}>
           <div className="form-grid">
-            <div className="field"><label>Name</label><input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></div>
-            <div className="field"><label>Subject</label><input value={edit.subject || ''} onChange={(e) => setEdit({ ...edit, subject: e.target.value })} /></div>
-            <div className="field"><label>Body</label><textarea style={{ minHeight: 140 }} value={edit.body} onChange={(e) => setEdit({ ...edit, body: e.target.value })} /></div>
+            {fields(edit, setEdit)}
             <div className="modal-foot"><button className="btn btn-outline" onClick={() => setEdit(null)}>Cancel</button><button className="btn btn-primary" onClick={save}>Save</button></div>
           </div>
         </Modal>
@@ -214,25 +259,44 @@ function Templates() {
             <div className="row-2">
               <div className="field"><label>Kind</label>
                 <select value={adding.kind} onChange={(e) => setAdding({ ...adding, kind: e.target.value })}>
-                  <option value="buyer_quotation">Buyer Quotation</option>
-                  <option value="followup">Follow-up</option>
-                  <option value="whatsapp_response">WhatsApp Response</option>
-                  <option value="photo_request">Photo Request</option>
+                  {TEMPLATE_GROUPS.map((g) => (
+                    <optgroup key={g.title} label={g.title}>
+                      {g.kinds.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+                    </optgroup>
+                  ))}
                 </select></div>
               <div className="field"><label>Channel</label>
                 <select value={adding.channel} onChange={(e) => setAdding({ ...adding, channel: e.target.value })}>
-                  <option value="any">Any</option><option value="email">Email</option>
+                  <option value="any">Any</option><option value="email">Email</option><option value="whatsapp">WhatsApp</option>
                 </select></div>
             </div>
-            <div className="field"><label>Name</label><input value={adding.name} onChange={(e) => setAdding({ ...adding, name: e.target.value })} /></div>
-            <div className="field"><label>Subject</label><input value={adding.subject} onChange={(e) => setAdding({ ...adding, subject: e.target.value })} /></div>
-            <div className="field"><label>Body</label><textarea style={{ minHeight: 140 }} value={adding.body} onChange={(e) => setAdding({ ...adding, body: e.target.value })} /></div>
+            {fields(adding, setAdding)}
             <div className="modal-foot"><button className="btn btn-outline" onClick={() => setAdding(null)}>Cancel</button>
               <button className="btn btn-primary" disabled={!adding.name || !adding.body} onClick={create}>Add template</button></div>
           </div>
         </Modal>
       )}
     </div>
+  )
+}
+
+/* Approved Meta template used when the recipient hasn't messaged in the last 24h. */
+function WaTemplateFields({ t, set }) {
+  const params = [...new Set([...(t.body || '').matchAll(/\{\{\s*([a-z_][a-z0-9_]*)\s*\}\}/g)].map((m) => m[1]))]
+  return (
+    <>
+      <div className="row-2">
+        <div className="field"><label>Meta template name (WhatsApp)</label>
+          <input placeholder="e.g. buyer_quotation" value={t.wa_template || ''} onChange={(e) => set({ ...t, wa_template: e.target.value })} /></div>
+        <div className="field"><label>Template language</label>
+          <input placeholder="en" value={t.wa_lang || ''} onChange={(e) => set({ ...t, wa_lang: e.target.value })} /></div>
+      </div>
+      <div className="t-sub">
+        WhatsApp only delivers free text to people who messaged you in the last 24 hours. For anyone else this approved
+        Meta template is sent instead. Create it in WhatsApp Manager with the same body and <b>named</b> variables
+        {params.length ? <>: {params.map((p) => <code key={p} style={{ marginRight: 4 }}>{`{{${p}}}`}</code>)}</> : '.'}
+      </div>
+    </>
   )
 }
 
@@ -295,6 +359,23 @@ function Integrations() {
             <dt>Sending</dt><dd><span className={`badge ${w.send_ready ? 'b-ok' : 'b-muted'}`}>{w.send_ready ? 'ready' : 'off'}</span></dd>
             <dt>Phone Number ID</dt><dd><span className={`badge ${w.phone_id_set ? 'b-ok' : 'b-reject'}`}>{w.phone_id_set ? 'set' : 'missing'}</span></dd>
             <dt>Access token</dt><dd><span className={`badge ${w.token_set ? 'b-ok' : 'b-reject'}`}>{w.token_set ? 'set' : 'missing'}</span></dd>
+            <dt>Templates (24h+)</dt><dd>
+              {(w.templates || []).length === 0 ? '—' : (w.templates || []).map((t) => (
+                <div key={t.name} style={{ marginBottom: 4 }}>{t.name} → {t.wa_template
+                  ? <>
+                      <span className={`badge ${t.meta?.found === false || (t.meta?.status && t.meta.status !== 'APPROVED') ? 'b-reject' : 'b-ok'}`}>{t.wa_template} · {t.wa_lang || 'en'}</span>
+                      {t.meta?.found === false && <span className="t-sub"> not found in Meta (check name/language)</span>}
+                      {t.meta?.found && (
+                        <span className="t-sub"> {t.meta.status}
+                          {t.meta.header === 'IMAGE' && ' · photo header'}
+                          {t.meta.buttons?.length ? ` · buttons: ${t.meta.buttons.join(' / ')}` : ''}
+                          {t.meta.header === 'IMAGE' && !w.fallback_image && ' · rows without photos need WA_FALLBACK_IMAGE'}
+                        </span>
+                      )}
+                    </>
+                  : <span className="badge b-reject">no Meta template</span>}</div>
+              ))}
+            </dd>
           </dl>
           <div className="field" style={{ marginTop: 10 }}>
             <label>Webhook callback URL (set this in the Meta app dashboard)</label>
@@ -324,7 +405,7 @@ function Integrations() {
 
 /* ---------------- Machine masters (Make / Model / Machine) ----------------
    Reference lists used to recognize machines in supplier email & WhatsApp intake. */
-function MasterList({ title, hint, loader, saver, hasCategory }) {
+function MasterList({ title, loader, saver, hasCategory }) {
   const { flash } = useStore()
   const [rows, setRows] = useState([])
   const [q, setQ] = useState('')
@@ -343,8 +424,8 @@ function MasterList({ title, hint, loader, saver, hasCategory }) {
   const activeCount = rows.filter((r) => r.active).length
   return (
     <div className="card">
-      <div className="card-head">
-        <div><h3>{title}</h3><span className="hint">{hint} · {rows.length} total · {activeCount} active</span></div>
+      <div className="card-actions">
+        <span className="hint">{rows.length} total · {activeCount} active</span>
         <button className="btn btn-primary btn-sm" onClick={() => setForm(hasCategory ? { name: '', category: '', active: 1 } : { name: '', active: 1 })}>＋ Add</button>
       </div>
       <div className="card-pad" style={{ paddingBottom: 0 }}>
@@ -387,9 +468,9 @@ export default function Administration() {
     <div className="stack">
       {tab === 'users' && <Users />}
       {tab === 'keywords' && <Keywords />}
-      {tab === 'machine_make' && <MasterList title="Machine Make" hint="brands/makes used to recognize machines in email & WhatsApp" loader={api.machineMakes} saver={api.saveMachineMake} hasCategory />}
-      {tab === 'model' && <MasterList title="Model" hint="machine models matched in incoming supplier messages" loader={api.models} saver={api.saveModel} />}
-      {tab === 'machine' && <MasterList title="Machine" hint="machine names matched in incoming supplier messages" loader={api.machines} saver={api.saveMachine} />}
+      {tab === 'machine_make' && <MasterList title="Machine Make" loader={api.machineMakes} saver={api.saveMachineMake} hasCategory />}
+      {tab === 'model' && <MasterList title="Model" loader={api.models} saver={api.saveModel} />}
+      {tab === 'machine' && <MasterList title="Machine" loader={api.machines} saver={api.saveMachine} />}
       {tab === 'enquiry' && <Channels purpose="buyer_enquiry" title="Buyer-Enquiry Receiving Channels" />}
       {tab === 'proposal' && <Channels purpose="supplier_proposal" title="Supplier-Proposal Receiving Channels" />}
       {tab === 'templates' && <Templates />}

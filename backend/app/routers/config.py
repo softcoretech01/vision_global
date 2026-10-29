@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Request
 from ..db import admin_engine, q, execute
 from ..security import require_auth, hash_pw
 from ..integrations import gmail, imap_fetch
+from ..integrations.notify import wa_template_info
 
 router = APIRouter()
 
@@ -142,18 +143,23 @@ def list_templates(user=Depends(require_auth)):
 async def create_template(req: Request, user=Depends(require_auth)):
     b = await req.json()
     res = execute(admin_engine,
-                  "INSERT INTO templates (kind,channel,name,subject,body,active) VALUES (:kind,:channel,:name,:subject,:body,:active)",
+                  """INSERT INTO templates (kind,channel,name,subject,body,active,wa_template,wa_lang)
+                     VALUES (:kind,:channel,:name,:subject,:body,:active,:wt,:wl)""",
                   {"kind": b.get("kind"), "channel": b.get("channel") or "any", "name": b.get("name"),
-                   "subject": b.get("subject"), "body": b.get("body"), "active": 1 if b.get("active", True) else 0})
+                   "subject": b.get("subject"), "body": b.get("body"), "active": 1 if b.get("active", True) else 0,
+                   "wt": (b.get("wa_template") or "").strip() or None, "wl": (b.get("wa_lang") or "").strip() or None})
     return {"id": res["lastrowid"]}
 
 
 @router.put("/templates/{tid}")
 async def update_template(tid: int, req: Request, user=Depends(require_auth)):
     b = await req.json()
-    execute(admin_engine, "UPDATE templates SET name=:name, subject=:subject, body=:body, active=:active WHERE id=:id",
+    execute(admin_engine,
+            """UPDATE templates SET name=:name, subject=:subject, body=:body, active=:active,
+                      wa_template=:wt, wa_lang=:wl WHERE id=:id""",
             {"name": b.get("name"), "subject": b.get("subject"), "body": b.get("body"),
-             "active": 1 if b.get("active") else 0, "id": tid})
+             "active": 1 if b.get("active") else 0, "id": tid,
+             "wt": (b.get("wa_template") or "").strip() or None, "wl": (b.get("wa_lang") or "").strip() or None})
     return {"ok": True}
 
 
@@ -162,6 +168,12 @@ async def update_template(tid: int, req: Request, user=Depends(require_auth)):
 def integrations(user=Depends(require_auth)):
     smtp_on = bool(os.environ.get("SMTP_HOST"))
     imap_on = bool(os.environ.get("IMAP_USER") and os.environ.get("IMAP_PASS"))
+    # App templates used on WhatsApp, each with what Meta says about its approved template.
+    wa_tpls = q(admin_engine, """SELECT name, kind, wa_template, wa_lang FROM templates
+                                 WHERE active=1 AND channel IN ('whatsapp','any') ORDER BY kind""")
+    for t in wa_tpls:
+        if t.get("wa_template"):
+            t["meta"] = wa_template_info(t["wa_template"], (t.get("wa_lang") or os.environ.get("WA_TEMPLATE_LANG") or "en").strip())
     return {
         "email": {
             "configured": smtp_on or imap_on,
@@ -185,6 +197,9 @@ def integrations(user=Depends(require_auth)):
             "verify_token": os.environ.get("WA_VERIFY_TOKEN", ""),
             "webhook_url": f"{os.environ.get('PUBLIC_BASE', 'http://localhost:8000').rstrip('/')}/api/whatsapp/webhook",
             "api_version": os.environ.get("WA_API_VERSION", "v21.0"),
+            # App templates used on WhatsApp and the approved Meta template each falls back to.
+            "templates": wa_tpls,
+            "fallback_image": bool(os.environ.get("WA_FALLBACK_IMAGE")),
         },
     }
 
