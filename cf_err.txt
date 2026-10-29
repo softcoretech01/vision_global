@@ -1,0 +1,58 @@
+2026-10-23T10:07:11Z INF Thank you for trying Cloudflare Tunnel. Doing so, without a Cloudflare account, is a quick way to experiment and try it out. However, be aware that these account-less Tunnels have no uptime guarantee, are subject to the Cloudflare Online Services Terms of Use (https://www.cloudflare.com/website-terms/), and Cloudflare reserves the right to investigate your use of Tunnels for violations of such terms. If you intend to use Tunnels in production you should use a pre-created named tunnel by following: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps
+2026-10-23T10:07:11Z INF Requesting new quick Tunnel on trycloudflare.com...
+2026-10-23T10:07:16Z INF +--------------------------------------------------------------------------------------------+
+2026-10-23T10:07:17Z INF |  Your quick Tunnel has been created! Visit it at (it may take some time to be reachable):  |
+2026-10-23T10:07:17Z INF |  https://judgment-flags-probably-conferences.trycloudflare.com                             |
+2026-10-23T10:07:17Z INF +--------------------------------------------------------------------------------------------+
+2026-10-23T10:07:17Z INF Cannot determine default configuration path. No file [config.yml config.yaml] in [~/.cloudflared ~/.cloudflare-warp ~/cloudflare-warp]
+2026-10-23T10:07:17Z INF Version 2026.10.3 (Checksum 76b2805253d0d6ffacb092a7acfbee99e7af6917835c0c5410e23f3ef5052da2)
+2026-10-23T10:07:17Z INF GOOS: windows, GOVersion: go1.27.3, GoArch: amd64
+2026-10-23T10:07:17Z INF Settings: map[ha-connections:1 protocol:quic url:http://localhost:8000]
+2026-10-23T10:07:17Z INF cloudflared will not automatically update on Windows systems.
+2026-10-23T10:07:17Z INF Generated Connector ID: 6abf9cd0-c269-4c27-9aae-5798e615a7ea
+2026-10-23T10:07:17Z INF Initial protocol quic
+2026-10-23T10:07:17Z INF ICMP proxy will use 192.168.0.9 as source for IPv4
+2026-10-23T10:07:17Z INF ICMP proxy will use 2406:7400:ff03:a1e6:e57d:767b:f0be:872f in zone Wi-Fi as source for IPv6
+2026-10-23T10:07:17Z INF cloudflared does not support loading the system root certificate pool on Windows. Please use --origin-ca-pool <PATH> to specify the path to the certificate pool
+2026-10-23T10:07:17Z INF ICMP proxy will use 192.168.0.9 as source for IPv4
+2026-10-23T10:07:17Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256] connIndex=0 event=0 ip=2606:4700:a0::7
+2026-10-23T10:07:17Z INF ICMP proxy will use 2406:7400:ff03:a1e6:e57d:767b:f0be:872f in zone Wi-Fi as source for IPv6
+2026-10-23T10:07:17Z INF Starting metrics server on 127.0.0.1:20241/metrics
+2026-10-23T10:07:17Z INF +-------------------------------------------------------------------------------------+
+2026-10-23T10:07:17Z INF |                               CONNECTIVITY PRE-CHECKS                               |
+2026-10-23T10:07:17Z INF +-------------------------------------------------------------------------------------+
+2026-10-23T10:07:17Z INF |  COMPONENT         TARGET                     STATUS  DETAILS                       |
+2026-10-23T10:07:17Z INF |  DNS Resolution    region1.v2.argotunnel.com  PASS    DNS Resolved successfully     |
+2026-10-23T10:07:17Z INF |  DNS Resolution    region2.v2.argotunnel.com  PASS    DNS Resolved successfully     |
+2026-10-23T10:07:17Z INF |  UDP Connectivity  region1.v2.argotunnel.com  PASS    QUIC connection successful    |
+2026-10-23T10:07:17Z INF |  UDP Connectivity  region2.v2.argotunnel.com  PASS    QUIC connection successful    |
+2026-10-23T10:07:17Z INF |  TCP Connectivity  region1.v2.argotunnel.com  PASS    HTTP/2 connection successful  |
+2026-10-23T10:07:17Z INF |  TCP Connectivity  region2.v2.argotunnel.com  PASS    HTTP/2 connection successful  |
+2026-10-23T10:07:17Z INF |  Cloudflare API    api.cloudflare.com:443     PASS    API is reachable              |
+2026-10-23T10:07:17Z INF |                                                                                     |
+2026-10-23T10:07:17Z INF |  SUMMARY: Environment is healthy. cloudflared will use 'quic' as primary protocol.  |
+2026-10-23T10:07:17Z INF +-------------------------------------------------------------------------------------+
+2026-10-23T10:07:17Z INF precheck component="DNS Resolution" details="DNS Resolved successfully" run_id=7d7e9ec4-c3a1-4feb-b711-28ae6a21d000 status=pass target=region1.v2.argotunnel.com
+2026-10-23T10:07:17Z INF precheck component="DNS Resolution" details="DNS Resolved successfully" run_id=7d7e9ec4-c3a1-4feb-b711-28ae6a21d000 status=pass target=region2.v2.argotunnel.com
+2026-10-23T10:07:17Z INF precheck component="UDP Connectivity" details="QUIC connection successful" run_id=7d7e9ec4-c3a1-4feb-b711-28ae6a21d000 status=pass target=region1.v2.argotunnel.com
+2026-10-23T10:07:17Z INF precheck component="UDP Connectivity" details="QUIC connection successful" run_id=7d7e9ec4-c3a1-4feb-b711-28ae6a21d000 status=pass target=region2.v2.argotunnel.com
+2026-10-23T10:07:17Z INF precheck component="TCP Connectivity" details="HTTP/2 connection successful" run_id=7d7e9ec4-c3a1-4feb-b711-28ae6a21d000 status=pass target=region1.v2.argotunnel.com
+2026-10-23T10:07:17Z INF precheck component="TCP Connectivity" details="HTTP/2 connection successful" run_id=7d7e9ec4-c3a1-4feb-b711-28ae6a21d000 status=pass target=region2.v2.argotunnel.com
+2026-10-23T10:07:17Z INF precheck component="Cloudflare API" details="API is reachable" run_id=7d7e9ec4-c3a1-4feb-b711-28ae6a21d000 status=pass target=api.cloudflare.com:443
+2026-10-23T10:07:17Z INF precheck complete hard_fail=false run_id=7d7e9ec4-c3a1-4feb-b711-28ae6a21d000 suggested_protocol=quic
+2026-10-23T10:07:17Z INF Registered tunnel connection connIndex=0 connection=a6dc2a4d-05a0-45ea-801a-8c9e1f2e1b6c event=0 ip=2606:4700:a0::7 location=maa01 protocol=quic
+2026-10-23T10:12:22Z ERR Failed to refresh DNS local resolver error="lookup region1.v2.argotunnel.com: i/o timeout"
+2026-10-23T10:17:27Z ERR Failed to refresh DNS local resolver error="lookup region1.v2.argotunnel.com: i/o timeout"
+2026-10-23T10:28:59Z ERR  error="Incoming request ended abruptly: context canceled" connIndex=0 event=1 ingressRule=0 originService=http://localhost:8000
+2026-10-23T10:28:59Z ERR Request failed error="Incoming request ended abruptly: context canceled" connIndex=0 dest=https://judgment-flags-probably-conferences.trycloudflare.com/uploads/4aa4d13cd6dd4c15abcb867c24efc8a7.png event=0 ip=2606:4700:a0::7 type=http
+2026-10-23T10:29:00Z ERR  error="Incoming request ended abruptly: context canceled" connIndex=0 event=1 ingressRule=0 originService=http://localhost:8000
+2026-10-23T10:29:00Z ERR Request failed error="Incoming request ended abruptly: context canceled" connIndex=0 dest=https://judgment-flags-probably-conferences.trycloudflare.com/uploads/4aa4d13cd6dd4c15abcb867c24efc8a7.png event=0 ip=2606:4700:a0::7 type=http
+2026-10-23T10:29:00Z ERR  error="stream 81 canceled by remote with error code 0" connIndex=0 event=1 ingressRule=0 originService=http://localhost:8000
+2026-10-23T10:29:00Z ERR Request failed error="stream 81 canceled by remote with error code 0" connIndex=0 dest=https://judgment-flags-probably-conferences.trycloudflare.com/uploads/4aa4d13cd6dd4c15abcb867c24efc8a7.png event=0 ip=2606:4700:a0::7 type=http
+2026-10-23T10:29:00Z ERR  error="stream 89 canceled by remote with error code 0" connIndex=0 event=1 ingressRule=0 originService=http://localhost:8000
+2026-10-23T10:29:00Z ERR Request failed error="stream 89 canceled by remote with error code 0" connIndex=0 dest=https://judgment-flags-probably-conferences.trycloudflare.com/uploads/4aa4d13cd6dd4c15abcb867c24efc8a7.png event=0 ip=2606:4700:a0::7 type=http
+2026-10-23T10:29:00Z ERR  error="Incoming request ended abruptly: context canceled" connIndex=0 event=1 ingressRule=0 originService=http://localhost:8000
+2026-10-23T10:29:00Z ERR Request failed error="Incoming request ended abruptly: context canceled" connIndex=0 dest=https://judgment-flags-probably-conferences.trycloudflare.com/uploads/4aa4d13cd6dd4c15abcb867c24efc8a7.png event=0 ip=2606:4700:a0::7 type=http
+2026-10-23T10:29:01Z ERR  error="stream 97 canceled by remote with error code 0" connIndex=0 event=1 ingressRule=0 originService=http://localhost:8000
+2026-10-23T10:29:01Z ERR Request failed error="stream 97 canceled by remote with error code 0" connIndex=0 dest=https://judgment-flags-probably-conferences.trycloudflare.com/uploads/4aa4d13cd6dd4c15abcb867c24efc8a7.png event=0 ip=2606:4700:a0::7 type=http
+2026-10-23T10:32:32Z ERR Failed to refresh DNS local resolver error="lookup region1.v2.argotunnel.com: i/o timeout"
