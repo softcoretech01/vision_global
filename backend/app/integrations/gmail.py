@@ -76,13 +76,24 @@ def _api_get(path: str, token: str) -> dict:
         return json.loads(r.read().decode() or "{}")
 
 
-def send(to: str, subject: str, body: str) -> dict:
+def send(to: str, subject: str, body: str, attachments: list = None) -> dict:
+    """attachments: [(filename, maintype, subtype, data)] — e.g. machine photos."""
     token = get_access_token()
     msg = EmailMessage()
     msg["To"] = to
     msg["From"] = os.environ.get("GMAIL_USER", "")
     msg["Subject"] = subject or "Vision Global"
     msg.set_content(body)
+    for fname, maintype, subtype, data in attachments or []:
+        msg.add_attachment(data, maintype=maintype, subtype=subtype, filename=fname)
+    if attachments:
+        # The JSON send call only takes small messages; the upload endpoint takes up to 35 MB.
+        req = urllib.request.Request(
+            "https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=media",
+            data=msg.as_bytes(), method="POST",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "message/rfc822"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return json.loads(r.read().decode() or "{}")
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
     data = json.dumps({"raw": raw}).encode()
     req = urllib.request.Request(f"{API}/messages/send", data=data,

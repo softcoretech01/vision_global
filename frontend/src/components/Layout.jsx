@@ -15,19 +15,22 @@ const NAV = [
 ]
 
 const TITLES = {
-  '/': ['Dashboard', 'Overview of enquiries, proposals & quotations'],
-  '/buyer-enquiry': ['Buyer Enquiry', 'All buyer enquiries · filter by date & channel'],
-  '/supplier-proposal': ['Supplier Proposal', 'Supplier quotes from Email/WhatsApp — one row per machine'],
-  '/buyer-quotation': ['Buyer Quotation', 'Quotations sent to buyers · follow-up & chat'],
-  '/administration': ['Administration', 'Users, channel configuration & message templates'],
+  '/': 'Dashboard',
+  '/buyer-enquiry': 'Buyer Enquiry',
+  '/supplier-proposal': 'Supplier Proposal',
+  '/buyer-quotation': 'Buyer Quotation',
+  '/potential': 'Potential',
+  '/need-support': 'Need Support',
+  '/administration': 'Administration',
 }
 
 export default function Layout({ children }) {
   const { logout, user, usingMock } = useStore()
   const loc = useLocation()
   const base = '/' + (loc.pathname.split('/')[1] || '')
-  const [title, sub] = TITLES[base] || ['Vision Global', '']
   const onAdmin = base === '/administration'
+  const adminSection = onAdmin && ADMIN_SECTIONS.find((s) => s.id === loc.pathname.split('/')[2])
+  const title = adminSection ? `Administration — ${adminSection.label}` : (TITLES[base] || 'Vision Global')
   const [adminOpen, setAdminOpen] = useState(onAdmin)
   useEffect(() => { if (onAdmin) setAdminOpen(true) }, [onAdmin])
   const [collapsed, setCollapsed] = useState(() => {
@@ -102,7 +105,6 @@ export default function Layout({ children }) {
         <header className="topbar">
           <div>
             <h2>{title}</h2>
-            <p className="page-sub">{sub}</p>
           </div>
           <div className="topbar-right">
             <span className="user-chip"><span className="user-avatar">{(user?.name || 'A')[0]}</span> {user?.name || 'Admin'}</span>

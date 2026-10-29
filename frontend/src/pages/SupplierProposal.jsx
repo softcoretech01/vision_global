@@ -142,6 +142,8 @@ function EditableText({ value, onCommit }) {
   )
 }
 
+const PAGE_SIZE = 50
+
 const STATES = [
   { v: 'active', label: 'Active' },
   { v: 'sold', label: 'Sold' },
@@ -161,16 +163,24 @@ export default function SupplierProposal() {
   const [gallery, setGallery] = useState(null)
   const [confirmSend, setConfirmSend] = useState(null)
 
+  // The server returns one page (50 rows) at a time plus the total.
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const query = () => ({ q, from: range?.fromDate, to: range?.toDate, state: stateFilter, page, pageSize: PAGE_SIZE })
+  const apply = (d) => { setRows(d.rows || []); setTotal(d.total ?? (d.rows || []).length) }
   const load = () => {
     setLoading(true)
-    api.proposals({ q, from: range?.fromDate, to: range?.toDate, state: stateFilter })
-      .then((d) => { setRows(d.rows || []); setLoading(false) })
+    api.proposals(query())
+      .then((d) => { apply(d); setLoading(false) })
       .catch((err) => {
         console.error('Failed to load proposals:', err)
         setLoading(false)
       })
   }
-  useEffect(load, [q, range, stateFilter])
+  useEffect(load, [q, range, stateFilter, page])
+  // A new search / date range / tab starts again at page 1.
+  useEffect(() => { setPage(1) }, [q, range, stateFilter])
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   // Auto-refresh: poll the backend every 30s (matching the server's fetch cadence)
   // so newly imported supplier quotes appear without a manual reload. A tick is
@@ -181,12 +191,12 @@ export default function SupplierProposal() {
       const ae = document.activeElement
       if (ae && ['INPUT', 'TEXTAREA', 'SELECT'].includes(ae.tagName)) return
       if (sentModal || gallery || confirmSend) return
-      api.proposals({ q, from: range?.fromDate, to: range?.toDate, state: stateFilter })
-        .then((d) => setRows(d.rows || []))
-        .catch(() => {})
+      api.proposals(query())
+        .then(apply)
+        .catch(() => { })
     }, 30000)
     return () => clearInterval(id)
-  }, [q, range, stateFilter, sentModal, gallery, confirmSend])
+  }, [q, range, stateFilter, page, sentModal, gallery, confirmSend])
 
   const patch = async (id, p) => {
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...p } : r)))
@@ -208,9 +218,10 @@ export default function SupplierProposal() {
     try {
       const res = await api.requestPhoto(r.id)
       setRows((rs) => rs.map((x) => (x.id === r.id ? { ...x, photo_status: 'requested' } : x)))
-      flash(`Photo request sent to ${r.supplier_name} on ${res.channel}`)
+      if (res.window_closed) flash(`${r.supplier_name} hasn't messaged in 24h and no Meta template is set — WhatsApp may not deliver it`, 'err')
+      else flash(`Photo request sent to ${r.supplier_name} on ${res.channel}${res.kind === 'template' ? ' (template)' : ''}`)
     } catch (err) {
-      flash(err.message || 'Failed to request photo')
+      flash(err.message || 'Failed to request photo', 'err')
     } finally {
       setBusy(null)
     }
@@ -236,7 +247,9 @@ export default function SupplierProposal() {
       setRows((rs) => rs.map((x) => (x.id === r.id ? { ...x, status: 'sent' } : x)))
       setConfirmSend(null)
       setSentModal({ machine: r.machine, ...res })
-      flash(`Quotation sent to ${res.sent || 0} buyer(s)`)
+      if (res.failed) flash(`${res.failed} buyer(s) not reached: ${(res.errors || []).join('; ')}`, 'err')
+      else if (res.windowClosed) flash(`${res.windowClosed} WhatsApp buyer(s) are outside the 24h window with no Meta template set — those may not be delivered`, 'err')
+      else flash(`Quotation sent to ${res.sent || 0} buyer(s)`)
     } catch (err) {
       flash(err.message || 'Failed to send quotation', 'err')
     } finally {
@@ -254,10 +267,6 @@ export default function SupplierProposal() {
       </div>
 
       <div className="card">
-        <div className="card-head">
-          <h3>Supplier Proposals — per machine</h3>
-          <span className="hint">{rows.length} machine row(s){loading ? ' · loading…' : ''} · segregated from supplier emails</span>
-        </div>
         <div className="card-pad" style={{ paddingBottom: 0 }}>
           <div className="tabs">
             {STATES.map((s) => (
@@ -269,7 +278,7 @@ export default function SupplierProposal() {
           <table className="dense">
             <thead>
               <tr>
-                <th>S.No</th><th>Date</th><th>Supplier</th><th>Machine</th><th>Photos</th>
+                <th>S.No</th><th>Date</th><th>Supplier</th><th>Through</th><th>Machine</th><th>Photos</th>
                 <th style={{ textAlign: 'right' }}>Price (₹)</th><th>Margin %</th><th style={{ textAlign: 'right' }}>Final (₹)</th>
                 <th>Buyer</th><th>Status</th><th>Photo request</th><th>Action</th>
               </tr>
@@ -280,9 +289,10 @@ export default function SupplierProposal() {
                 const isSent = r.status === 'sent' || r.quotation_sent
                 return (
                   <tr key={r.id}>
-                    <td className="t-sub">{i + 1}</td>
+                    <td className="t-sub">{(page - 1) * PAGE_SIZE + i + 1}</td>
                     <td className="t-sub">{fmtDate(r.received_at || r.created_at)}</td>
-                    <td className="t-main">{r.supplier_name}<div className="t-sub">{r.source_channel}</div></td>
+                    <td className="t-main">{r.supplier_name}</td>
+                    <td>{r.source_channel ? <span className="badge b-chan">{r.source_channel}</span> : '—'}</td>
                     <td style={{ textAlign: 'center' }}>
                       <button className="btn btn-outline btn-sm" style={{ padding: '4px 10px' }}
                         onClick={() => navigate(`/supplier-proposal/${r.id}`)} title={`View details — ${r.machine}`}>🔍</button>
@@ -290,9 +300,9 @@ export default function SupplierProposal() {
                     <td>
                       {r.photos?.length
                         ? <button className="photo-chip" onClick={() => setGallery({ machine: r.machine, photos: r.photos })} title="View photos">
-                            <img src={r.photos[0]} alt="" className="photo-thumb" />
-                            {r.photos.length > 1 && <span className="photo-count">+{r.photos.length - 1}</span>}
-                          </button>
+                          <img src={r.photos[0]} alt="" className="photo-thumb" />
+                          {r.photos.length > 1 && <span className="photo-count">+{r.photos.length - 1}</span>}
+                        </button>
                         : <span className="muted">—</span>}
                     </td>
                     <td className="money" style={{ textAlign: 'right' }}>{num(r.price)}</td>
@@ -313,20 +323,35 @@ export default function SupplierProposal() {
                       </select>
                     </td>
                     <td>
-                      <button className="btn btn-outline btn-sm" style={{ padding: '4px 8px' }} disabled={busy === `photo-${r.id}`} onClick={() => getPhoto(r)} title="Request photos">📷</button>
-                      {r.photo_status === 'requested' && <div className="t-sub" style={{ color: 'var(--warn-600)' }}>requested</div>}
+                      {/* Shows when photos were asked for; can always be clicked to ask again. */}
+                      <button className="btn btn-outline btn-sm" disabled={busy === `photo-${r.id}`} onClick={() => getPhoto(r)}
+                        style={r.photo_status === 'requested' ? { borderColor: 'var(--ok-600)', color: 'var(--ok-600)', background: 'var(--ok-050)' } : undefined}
+                        title={r.photo_status === 'requested' ? 'Photos already requested — click to ask the supplier again' : 'Ask the supplier for photos'}>
+                        {busy === `photo-${r.id}` ? 'Requesting…' : r.photo_status === 'requested' ? '✓ Requested' : '📷 Request'}
+                      </button>
                     </td>
                     <td>
-                      {isSent
-                        ? <span className="badge b-ok" style={{ padding: '5px 10px', fontSize: 12, fontWeight: 700 }}>✓ Sent</span>
-                        : <button className="btn btn-primary btn-sm" disabled={busy === `send-${r.id}`} onClick={() => askSend(r)}>{busy === `send-${r.id}` ? '…' : '➤ Send'}</button>}
+                      {/* Always the Send button — a row that was already sent can be sent again. */}
+                      <button className="btn btn-primary btn-sm" disabled={busy === `send-${r.id}`} onClick={() => askSend(r)}
+                        title={isSent ? 'Already sent — click to send this quotation again' : 'Send this quotation to buyers'}>
+                        {busy === `send-${r.id}` ? '…' : '➤ Send'}
+                      </button>
                     </td>
                   </tr>
                 )
               })}
-              {!loading && !rows.length && <tr><td colSpan="12" className="muted" style={{ textAlign: 'center', padding: 30 }}>No {stateFilter} proposals found.</td></tr>}
+              {!loading && !rows.length && <tr><td colSpan="13" className="muted" style={{ textAlign: 'center', padding: 30 }}>No {stateFilter} proposals found.</td></tr>}
             </tbody>
           </table>
+        </div>
+        <div className="pager">
+          <span className="t-sub">Page {page} of {pages} · {total} row(s)</span>
+          <div className="toolbar">
+            <button className="btn btn-outline btn-sm" disabled={page <= 1} onClick={() => setPage(1)}>« First</button>
+            <button className="btn btn-outline btn-sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>‹ Prev</button>
+            <button className="btn btn-outline btn-sm" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>Next ›</button>
+            <button className="btn btn-outline btn-sm" disabled={page >= pages} onClick={() => setPage(pages)}>Last »</button>
+          </div>
         </div>
       </div>
 
@@ -334,9 +359,11 @@ export default function SupplierProposal() {
         <Modal title="Quotation Sent" onClose={() => setSentModal(null)}>
           <div className="stack">
             <p style={{ margin: 0 }}>
-              Sent the <b>{sentModal.machine}</b> quotation to <b>{sentModal.sent}</b> buyer(s) who
-              enquired for this machine, at <b className="money">{money(sentModal.amount)}</b> per unit —
-              each on the channel they originally used.
+              Sent the <b>{sentModal.machine}</b> quotation to <b>{sentModal.sent}</b> buyer(s)
+              {sentModal.source === 'waiting_list' ? ' on the Waiting List' : ' who enquired for this machine'},
+              at <b className="money">{money(sentModal.amount)}</b> per unit —
+              {sentModal.byChannel ? `on WhatsApp (${sentModal.byChannel.whatsapp}) and email (${sentModal.byChannel.email}).` : 'on their channel.'}
+              {sentModal.failed ? ` ${sentModal.failed} could not be reached.` : ''}
             </p>
             <div className="modal-foot"><button className="btn btn-primary" onClick={() => setSentModal(null)}>Done</button></div>
           </div>
@@ -360,20 +387,22 @@ export default function SupplierProposal() {
           <div className="stack">
             <dl className="kv">
               <dt>Machine</dt><dd>{confirmSend.machine}</dd>
-              <dt>Buyer segment</dt><dd><SegBadge seg={confirmSend.segment} /></dd>
-              <dt>Recipients</dt><dd><b>{confirmSend.count}</b> buyer(s) who enquired for this machine</dd>
+              {confirmSend.source === 'waiting_list'
+                ? <><dt>Recipients</dt><dd><b>{confirmSend.count}</b> buyer(s) on this row's Waiting List</dd></>
+                : <><dt>Buyer segment</dt><dd><SegBadge seg={confirmSend.segment} /></dd>
+                  <dt>Recipients</dt><dd><b>{confirmSend.count}</b> buyer(s) who enquired for this machine</dd></>}
             </dl>
             {confirmSend.count ? (
               <div className="table-wrap" style={{ maxHeight: 220, overflow: 'auto' }}>
                 <table>
-                  <thead><tr><th>Buyer</th><th>Segment</th><th>Channel</th><th>To</th></tr></thead>
+                  <thead><tr><th>Buyer</th><th>Segment</th><th>Sent on</th><th>To</th></tr></thead>
                   <tbody>
                     {confirmSend.buyers.map((b, i) => (
                       <tr key={i}>
                         <td className="t-main">{b.name}</td>
                         <td><SegBadge seg={b.segment} /></td>
-                        <td><span className="badge b-chan">{b.channel}</span></td>
-                        <td className="t-sub">{b.channel === 'whatsapp' ? (b.phone || '—') : b.email}</td>
+                        <td>{(b.channels || []).length ? b.channels.map((c) => <span key={c} className="badge b-chan" style={{ marginRight: 4 }}>{c}</span>) : <span className="badge b-reject">no contact</span>}</td>
+                        <td className="t-sub">{(b.channels || []).map((c) => (c === 'whatsapp' ? b.phone : b.email)).join(' · ') || '—'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -382,7 +411,7 @@ export default function SupplierProposal() {
             ) : (
               <p className="muted" style={{ margin: 0 }}>
                 No buyers in the <b>{confirmSend.segment}</b> segment enquired for <b>{confirmSend.machine}</b>.
-                Change the Buyer segment on the row, or add a matching buyer enquiry.
+                Change the Buyer segment on the row, add a matching buyer enquiry, or pick buyers in the row's Waiting List.
               </p>
             )}
             <div className="modal-foot">
